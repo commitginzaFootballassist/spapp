@@ -122,12 +122,65 @@
       margin-top: 16px;
     }
 
+    .point-breakdown-toggle {
+      width: 100%;
+      appearance: none;
+      border: 1px solid #e9e9ef;
+      border-radius: 16px;
+      background: #fff;
+      padding: 14px 16px;
+      box-shadow: 0 10px 24px rgba(0,0,0,.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: #111;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .point-breakdown-toggle:active {
+      transform: translateY(1px);
+    }
+
+    .point-breakdown-toggle-title {
+      font-size: 16px;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+
+    .point-breakdown-toggle-right {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #777;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .point-breakdown-chevron {
+      display: inline-block;
+      font-size: 18px;
+      line-height: 1;
+      transition: transform .2s ease;
+    }
+
+    .point-breakdown-toggle[aria-expanded="true"] .point-breakdown-chevron {
+      transform: rotate(180deg);
+    }
+
     .point-breakdown-panel {
       background: #fff;
       border: 1px solid #e9e9ef;
       border-radius: 16px;
       overflow: hidden;
       box-shadow: 0 10px 24px rgba(0,0,0,.06);
+      margin-top: 8px;
+    }
+
+    .point-breakdown-panel[hidden] {
+      display: none;
     }
 
     .point-breakdown-table {
@@ -411,10 +464,20 @@
       </div>
       
       <div id="pointBreakdownSection" class="point-breakdown-section">
-        <div class="section-head">
-          <h3 class="section-title">ポイント内訳</h3>
-        </div>
-        <div class="point-breakdown-panel">
+        <button
+          id="pointBreakdownToggle"
+          class="point-breakdown-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="pointBreakdownPanel"
+        >
+          <span class="point-breakdown-toggle-title">ポイント内訳</span>
+          <span class="point-breakdown-toggle-right">
+            <span id="pointBreakdownToggleText">表示する</span>
+            <span class="point-breakdown-chevron" aria-hidden="true">⌄</span>
+          </span>
+        </button>
+        <div id="pointBreakdownPanel" class="point-breakdown-panel" hidden>
           <div id="pointBreakdownView"></div>
         </div>
       </div>
@@ -723,6 +786,30 @@ function normalizePointBreakdown(member) {
   );
 }
 
+function setPointBreakdownExpanded(expanded) {
+  const toggle = document.getElementById('pointBreakdownToggle');
+  const panel = document.getElementById('pointBreakdownPanel');
+  const toggleText = document.getElementById('pointBreakdownToggleText');
+  if (!toggle || !panel) return;
+
+  const isExpanded = expanded === true;
+  toggle.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+  panel.hidden = !isExpanded;
+
+  if (toggleText) {
+    toggleText.textContent = isExpanded ? '閉じる' : '表示する';
+  }
+}
+
+function togglePointBreakdown() {
+  const toggle = document.getElementById('pointBreakdownToggle');
+  if (!toggle) return;
+  const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+  setPointBreakdownExpanded(!isExpanded);
+}
+
+document.getElementById('pointBreakdownToggle')?.addEventListener('click', togglePointBreakdown);
+
 function renderPointBreakdown(member) {
   const section = document.getElementById('pointBreakdownSection');
   const view = document.getElementById('pointBreakdownView');
@@ -734,6 +821,7 @@ function renderPointBreakdown(member) {
   view.innerHTML = '';
 
   if (groups.length === 0) {
+    setPointBreakdownExpanded(false);
     section.style.display = 'none';
     return;
   }
@@ -798,6 +886,9 @@ function renderPointBreakdown(member) {
 
   table.appendChild(tbody);
   view.appendChild(table);
+
+  // 1年分の内訳で画面が長くならないよう、初期状態は閉じる。
+  setPointBreakdownExpanded(false);
   section.style.display = 'block';
 }
 
@@ -821,7 +912,7 @@ function renderCashoutDays(member) {
   }
 
   const safeDays = Math.max(0, Math.trunc(days));
-  el.textContent = `ポイント交換可能日まで あと${safeDays.toLocaleString()}日`;
+  el.textContent = `ポイント交換可能日まで あと${safeDays.toLocaleString()}日（予定）`;
   el.style.display = 'block';
 }
 
