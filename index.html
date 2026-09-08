@@ -860,7 +860,7 @@ function renderPointBreakdown(member) {
   const headRow = document.createElement('tr');
 
   const monthHead = document.createElement('th');
-  monthHead.textContent = '月';
+  monthHead.textContent = '付与月';
 
   const pointHead = document.createElement('th');
   pointHead.textContent = 'ポイント';
@@ -956,7 +956,7 @@ function renderCashoutDays(member) {
   }
 
   const safeDays = Math.max(0, Math.trunc(days));
-  el.textContent = `ポイント交換可能日まで あと${safeDays.toLocaleString()}日（予定）`;
+  el.textContent = `ポイント交換可能日まで あと${safeDays.toLocaleString()}日`;
   el.style.display = 'block';
 }
 
