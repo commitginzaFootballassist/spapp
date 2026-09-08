@@ -122,64 +122,53 @@
       margin-top: 16px;
     }
 
-    .point-breakdown-toggle {
-      width: 100%;
-      appearance: none;
-      border: 1px solid #e9e9ef;
-      border-radius: 16px;
-      background: #fff;
-      padding: 14px 16px;
-      box-shadow: 0 10px 24px rgba(0,0,0,.06);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      color: #111;
-      cursor: pointer;
-      text-align: left;
-    }
-
-    .point-breakdown-toggle:active {
-      transform: translateY(1px);
-    }
-
-    .point-breakdown-toggle-title {
-      font-size: 16px;
-      font-weight: 900;
-      line-height: 1.2;
-    }
-
-    .point-breakdown-toggle-right {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      color: #777;
-      font-size: 11px;
-      font-weight: 800;
-      white-space: nowrap;
-    }
-
-    .point-breakdown-chevron {
-      display: inline-block;
-      font-size: 18px;
-      line-height: 1;
-      transition: transform .2s ease;
-    }
-
-    .point-breakdown-toggle[aria-expanded="true"] .point-breakdown-chevron {
-      transform: rotate(180deg);
-    }
-
     .point-breakdown-panel {
       background: #fff;
       border: 1px solid #e9e9ef;
       border-radius: 16px;
       overflow: hidden;
       box-shadow: 0 10px 24px rgba(0,0,0,.06);
+    }
+
+    .point-breakdown-more-wrap {
+      display: none;
       margin-top: 8px;
     }
 
-    .point-breakdown-panel[hidden] {
+    .point-breakdown-more-btn {
+      width: 100%;
+      appearance: none;
+      border: 1px solid #e9e9ef;
+      border-radius: 14px;
+      background: #fff;
+      padding: 12px 14px;
+      color: #333;
+      font-size: 13px;
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(0,0,0,.05);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .point-breakdown-more-btn:active {
+      transform: translateY(1px);
+    }
+
+    .point-breakdown-more-chevron {
+      display: inline-block;
+      font-size: 16px;
+      line-height: 1;
+      transition: transform .2s ease;
+    }
+
+    .point-breakdown-more-btn[aria-expanded="true"] .point-breakdown-more-chevron {
+      transform: rotate(180deg);
+    }
+
+    .point-breakdown-older[hidden] {
       display: none;
     }
 
@@ -464,21 +453,25 @@
       </div>
       
       <div id="pointBreakdownSection" class="point-breakdown-section">
-        <button
-          id="pointBreakdownToggle"
-          class="point-breakdown-toggle"
-          type="button"
-          aria-expanded="false"
-          aria-controls="pointBreakdownPanel"
-        >
-          <span class="point-breakdown-toggle-title">ポイント内訳</span>
-          <span class="point-breakdown-toggle-right">
-            <span id="pointBreakdownToggleText">表示する</span>
-            <span class="point-breakdown-chevron" aria-hidden="true">⌄</span>
-          </span>
-        </button>
-        <div id="pointBreakdownPanel" class="point-breakdown-panel" hidden>
+        <div class="section-head">
+          <h3 class="section-title">ポイント内訳</h3>
+        </div>
+
+        <div id="pointBreakdownPanel" class="point-breakdown-panel">
           <div id="pointBreakdownView"></div>
+        </div>
+
+        <div id="pointBreakdownMoreWrap" class="point-breakdown-more-wrap">
+          <button
+            id="pointBreakdownMoreBtn"
+            class="point-breakdown-more-btn"
+            type="button"
+            aria-expanded="false"
+            aria-controls="pointBreakdownOlder"
+          >
+            <span id="pointBreakdownMoreText">過去のポイント内訳を表示</span>
+            <span class="point-breakdown-more-chevron" aria-hidden="true">⌄</span>
+          </button>
         </div>
       </div>
 
@@ -786,45 +779,79 @@ function normalizePointBreakdown(member) {
   );
 }
 
-function setPointBreakdownExpanded(expanded) {
-  const toggle = document.getElementById('pointBreakdownToggle');
-  const panel = document.getElementById('pointBreakdownPanel');
-  const toggleText = document.getElementById('pointBreakdownToggleText');
-  if (!toggle || !panel) return;
+function pointBreakdownMonthSortValue(monthLabel) {
+  const m = String(monthLabel || '').match(/(\d{4})\D{0,3}(\d{1,2})/);
+  if (!m) return -1;
+
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+    return -1;
+  }
+
+  return year * 100 + month;
+}
+
+function sortPointBreakdownDescending(groups) {
+  return [...(Array.isArray(groups) ? groups : [])].sort((a, b) => {
+    return pointBreakdownMonthSortValue(b?.month) - pointBreakdownMonthSortValue(a?.month);
+  });
+}
+
+function setOlderPointBreakdownExpanded(expanded) {
+  const older = document.getElementById('pointBreakdownOlder');
+  const btn = document.getElementById('pointBreakdownMoreBtn');
+  const textEl = document.getElementById('pointBreakdownMoreText');
+
+  if (!older || !btn) return;
 
   const isExpanded = expanded === true;
-  toggle.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
-  panel.hidden = !isExpanded;
+  older.hidden = !isExpanded;
+  btn.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
 
-  if (toggleText) {
-    toggleText.textContent = isExpanded ? '閉じる' : '表示する';
+  if (textEl) {
+    textEl.textContent = isExpanded
+      ? '過去のポイント内訳を閉じる'
+      : '過去のポイント内訳を表示';
   }
 }
 
-function togglePointBreakdown() {
-  const toggle = document.getElementById('pointBreakdownToggle');
-  if (!toggle) return;
-  const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
-  setPointBreakdownExpanded(!isExpanded);
+function toggleOlderPointBreakdown() {
+  const btn = document.getElementById('pointBreakdownMoreBtn');
+  if (!btn) return;
+
+  const isExpanded = btn.getAttribute('aria-expanded') === 'true';
+  setOlderPointBreakdownExpanded(!isExpanded);
 }
 
-document.getElementById('pointBreakdownToggle')?.addEventListener('click', togglePointBreakdown);
+document.getElementById('pointBreakdownMoreBtn')?.addEventListener('click', toggleOlderPointBreakdown);
 
 function renderPointBreakdown(member) {
   const section = document.getElementById('pointBreakdownSection');
   const view = document.getElementById('pointBreakdownView');
+  const moreWrap = document.getElementById('pointBreakdownMoreWrap');
+
   if (!section || !view) return;
 
-  const groups = normalizePointBreakdown(member)
-    .filter(group => group && group.month && Array.isArray(group.items) && group.items.length > 0);
+  const groups = sortPointBreakdownDescending(
+    normalizePointBreakdown(member)
+      .filter(group => group && group.month && Array.isArray(group.items) && group.items.length > 0)
+  );
 
   view.innerHTML = '';
 
+  if (moreWrap) {
+    moreWrap.style.display = 'none';
+  }
+
   if (groups.length === 0) {
-    setPointBreakdownExpanded(false);
     section.style.display = 'none';
     return;
   }
+
+  const latestGroups = groups.slice(0, 3);
+  const olderGroups = groups.slice(3);
 
   const table = document.createElement('table');
   table.className = 'point-breakdown-table';
@@ -833,7 +860,7 @@ function renderPointBreakdown(member) {
   const headRow = document.createElement('tr');
 
   const monthHead = document.createElement('th');
-  monthHead.textContent = '付与月';
+  monthHead.textContent = '月';
 
   const pointHead = document.createElement('th');
   pointHead.textContent = 'ポイント';
@@ -844,52 +871,69 @@ function renderPointBreakdown(member) {
   thead.appendChild(headRow);
   table.appendChild(thead);
 
-  const tbody = document.createElement('tbody');
+  function appendGroupsToTbody(targetTbody, targetGroups) {
+    targetGroups.forEach(group => {
+      const items = group.items.slice(0, 2);
 
-  groups.forEach(group => {
-    const items = group.items.slice(0, 2);
+      items.forEach((item, index) => {
+        const point = Number(item?.point);
+        if (!Number.isFinite(point)) return;
 
-    items.forEach((item, index) => {
-      const point = Number(item?.point);
-      if (!Number.isFinite(point)) return;
+        const tr = document.createElement('tr');
 
-      const tr = document.createElement('tr');
+        if (index === 0) {
+          const monthTd = document.createElement('td');
+          monthTd.className = 'point-breakdown-month';
+          monthTd.rowSpan = items.length;
+          monthTd.textContent = String(group.month || '');
+          tr.appendChild(monthTd);
+        }
 
-      if (index === 0) {
-        const monthTd = document.createElement('td');
-        monthTd.className = 'point-breakdown-month';
-        monthTd.rowSpan = items.length;
-        monthTd.textContent = String(group.month || '');
-        tr.appendChild(monthTd);
-      }
+        const pointTd = document.createElement('td');
+        pointTd.className = 'point-breakdown-values';
 
-      const pointTd = document.createElement('td');
-      pointTd.className = 'point-breakdown-values';
+        const pointEl = document.createElement('div');
+        const signClass = point > 0 ? 'plus' : point < 0 ? 'minus' : 'zero';
+        pointEl.className = `point-change ${signClass}`;
+        pointEl.textContent = point > 0
+          ? `+${point.toLocaleString()} pt`
+          : `${point.toLocaleString()} pt`;
 
-      const pointEl = document.createElement('div');
-      const signClass = point > 0 ? 'plus' : point < 0 ? 'minus' : 'zero';
-      pointEl.className = `point-change ${signClass}`;
-      pointEl.textContent = point > 0
-        ? `+${point.toLocaleString()} pt`
-        : `${point.toLocaleString()} pt`;
-
-      pointTd.appendChild(pointEl);
-      tr.appendChild(pointTd);
-      tbody.appendChild(tr);
+        pointTd.appendChild(pointEl);
+        tr.appendChild(pointTd);
+        targetTbody.appendChild(tr);
+      });
     });
-  });
-
-  if (!tbody.hasChildNodes()) {
-    section.style.display = 'none';
-    return;
   }
 
-  table.appendChild(tbody);
-  view.appendChild(table);
+  // 最新3か月分は常時表示
+  const latestTbody = document.createElement('tbody');
+  latestTbody.id = 'pointBreakdownLatest';
+  appendGroupsToTbody(latestTbody, latestGroups);
+  table.appendChild(latestTbody);
 
-  // 1年分の内訳で画面が長くならないよう、初期状態は閉じる。
-  setPointBreakdownExpanded(false);
+  // 4か月目以降は初期状態で非表示
+  if (olderGroups.length > 0) {
+    const olderTbody = document.createElement('tbody');
+    olderTbody.id = 'pointBreakdownOlder';
+    olderTbody.className = 'point-breakdown-older';
+    olderTbody.hidden = true;
+
+    appendGroupsToTbody(olderTbody, olderGroups);
+    table.appendChild(olderTbody);
+
+    if (moreWrap) {
+      moreWrap.style.display = 'block';
+    }
+  }
+
+  view.appendChild(table);
   section.style.display = 'block';
+
+  // 再描画時も必ず4か月目以降は閉じた状態に戻す
+  if (olderGroups.length > 0) {
+    setOlderPointBreakdownExpanded(false);
+  }
 }
 
 function renderCashoutDays(member) {
