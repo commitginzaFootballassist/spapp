@@ -821,7 +821,7 @@ function renderCashoutDays(member) {
   }
 
   const safeDays = Math.max(0, Math.trunc(days));
-  el.textContent = `ポイント交換可能日まで あと${safeDays.toLocaleString()}日（予定）`;
+  el.textContent = `ポイント交換可能日まで あと${safeDays.toLocaleString()}日`;
   el.style.display = 'block';
 }
 
