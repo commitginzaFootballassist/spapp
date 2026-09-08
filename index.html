@@ -139,15 +139,26 @@
     }
 
     .point-breakdown-month {
-      width: 46%;
+      width: 30%;
       color: #222;
       font-size: 13px;
       font-weight: 900;
       white-space: nowrap;
+      vertical-align: middle !important;
+    }
+
+    .point-breakdown-label {
+      width: 42%;
+      color: #555;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.4;
     }
 
     .point-breakdown-values {
+      width: 28%;
       text-align: right;
+      white-space: nowrap;
     }
 
     .point-change {
@@ -593,13 +604,22 @@ function toggleEntryBonus(member) {
   bonusNote.style.display = show ? 'block' : 'none';
 }
 
+const RANK_INCENTIVE_POINTS = {
+  A4: 10000,
+  A3: 30000,
+  A2: 50000,
+  A1: 100000
+};
+
+function getRankIncentivePoints(rank) {
+  const normalized = normalizeRank(rank);
+  return RANK_INCENTIVE_POINTS[normalized] ?? RANK_INCENTIVE_POINTS.A4;
+}
+
 function parsePointBreakdownRaw(rawValue) {
   const raw = String(rawValue ?? '').trim();
   if (!raw) return [];
 
-  // 例:
-  // 2026年06月 : -4000 pt,2026年06月 : 12000 pt,2026年07月 : 0 pt
-  // 数値側が 12,000 pt のような桁区切りでも解析可能。
   const pattern = /(\d{4})\s*年\s*(\d{1,2})\s*月\s*:\s*([+-]?\s*[\d,]+(?:\.\d+)?)\s*pt/gi;
   const grouped = new Map();
 
@@ -624,14 +644,68 @@ function parsePointBreakdownRaw(rawValue) {
   return Array.from(grouped.values());
 }
 
+function applyRankIncentiveToBreakdown(groups, rank) {
+  const rankBonus = getRankIncentivePoints(rank);
+
+  return (Array.isArray(groups) ? groups : [])
+    .filter(group => group && group.month && Array.isArray(group.items) && group.items.length > 0)
+    .map(group => {
+      // 1段目は勤怠ポイント
+      const attendancePoint = Number(group.items[0]?.point);
+      const safeAttendancePoint = Number.isFinite(attendancePoint) ? attendancePoint : 0;
+
+      // 2段目以降はインセンティブ元値として合算。
+      // 通常は2レコード目のみ。
+      const incentiveBase = group.items.slice(1).reduce((sum, item) => {
+        const value = Number(item?.point);
+        return sum + (Number.isFinite(value) ? value : 0);
+      }, 0);
+
+      return {
+        month: group.month,
+        rank: normalizeRank(rank),
+        rankBonus,
+        items: [
+          {
+            type: 'attendance',
+            label: '勤怠ポイント',
+            point: safeAttendancePoint,
+            basePoint: safeAttendancePoint,
+            rankBonus: 0
+          },
+          {
+            type: 'incentive',
+            label: 'インセンティブポイント',
+            point: incentiveBase + rankBonus,
+            basePoint: incentiveBase,
+            rankBonus,
+            synthesized: group.items.length < 2
+          }
+        ]
+      };
+    });
+}
+
 function normalizePointBreakdown(member) {
-  // 修正版Lambdaが返す構造化データを優先。
+  // Lambda v3以降はすでにランク加算済み・2段構成なのでそのまま使う。
   if (Array.isArray(member?.pointBreakdown) && member.pointBreakdown.length > 0) {
-    return member.pointBreakdown;
+    const isAdjusted = member.pointBreakdown.every(group =>
+      Array.isArray(group?.items)
+      && group.items.length >= 2
+      && group.items[0]?.type === 'attendance'
+      && group.items[1]?.type === 'incentive'
+    );
+    if (isAdjusted) return member.pointBreakdown;
+
+    // 旧LambdaのpointBreakdownが返ってきた場合もフロントで補正。
+    return applyRankIncentiveToBreakdown(member.pointBreakdown, member?.rank);
   }
 
-  // Lambda切替直後などに構造化データがない場合はN列の生文字列から画面側で解析。
-  return parsePointBreakdownRaw(member?.pointBreakdownRaw);
+  // rawしかない場合のフォールバック。
+  return applyRankIncentiveToBreakdown(
+    parsePointBreakdownRaw(member?.pointBreakdownRaw),
+    member?.rank
+  );
 }
 
 function renderPointBreakdown(member) {
@@ -655,51 +729,54 @@ function renderPointBreakdown(member) {
   const thead = document.createElement('thead');
   const headRow = document.createElement('tr');
 
-  const monthHead = document.createElement('th');
-  monthHead.textContent = '月';
+  ['月', '内訳', 'ポイント'].forEach((text, index) => {
+    const th = document.createElement('th');
+    th.textContent = text;
+    if (index === 2) th.style.textAlign = 'right';
+    headRow.appendChild(th);
+  });
 
-  const pointHead = document.createElement('th');
-  pointHead.textContent = 'ポイント';
-
-  headRow.appendChild(monthHead);
-  headRow.appendChild(pointHead);
   thead.appendChild(headRow);
   table.appendChild(thead);
 
   const tbody = document.createElement('tbody');
 
   groups.forEach(group => {
-    const tr = document.createElement('tr');
+    const items = group.items.slice(0, 2);
 
-    const monthTd = document.createElement('td');
-    monthTd.className = 'point-breakdown-month';
-    monthTd.textContent = String(group.month || '');
-
-    const valuesTd = document.createElement('td');
-    valuesTd.className = 'point-breakdown-values';
-
-    group.items.forEach(item => {
+    items.forEach((item, index) => {
       const point = Number(item?.point);
       if (!Number.isFinite(point)) return;
+
+      const tr = document.createElement('tr');
+
+      if (index === 0) {
+        const monthTd = document.createElement('td');
+        monthTd.className = 'point-breakdown-month';
+        monthTd.rowSpan = items.length;
+        monthTd.textContent = String(group.month || '');
+        tr.appendChild(monthTd);
+      }
+
+      const labelTd = document.createElement('td');
+      labelTd.className = 'point-breakdown-label';
+      labelTd.textContent = item?.label || (index === 0 ? '勤怠ポイント' : 'インセンティブポイント');
+
+      const pointTd = document.createElement('td');
+      pointTd.className = 'point-breakdown-values';
 
       const pointEl = document.createElement('div');
       const signClass = point > 0 ? 'plus' : point < 0 ? 'minus' : 'zero';
       pointEl.className = `point-change ${signClass}`;
+      pointEl.textContent = point > 0
+        ? `+${point.toLocaleString()} pt`
+        : `${point.toLocaleString()} pt`;
 
-      if (point > 0) {
-        pointEl.textContent = `+${point.toLocaleString()} pt`;
-      } else {
-        pointEl.textContent = `${point.toLocaleString()} pt`;
-      }
-
-      valuesTd.appendChild(pointEl);
+      pointTd.appendChild(pointEl);
+      tr.appendChild(labelTd);
+      tr.appendChild(pointTd);
+      tbody.appendChild(tr);
     });
-
-    if (!valuesTd.hasChildNodes()) return;
-
-    tr.appendChild(monthTd);
-    tr.appendChild(valuesTd);
-    tbody.appendChild(tr);
   });
 
   if (!tbody.hasChildNodes()) {
