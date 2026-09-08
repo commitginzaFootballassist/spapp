@@ -94,6 +94,73 @@
       color: #333;
     }
 
+    /* ===== Point Breakdown ===== */
+    .point-breakdown-section {
+      display: none;
+      margin-top: 16px;
+    }
+
+    .point-breakdown-panel {
+      background: #fff;
+      border: 1px solid #e9e9ef;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 10px 24px rgba(0,0,0,.06);
+    }
+
+    .point-breakdown-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .point-breakdown-table th {
+      padding: 11px 14px;
+      background: #f7f7fa;
+      color: #666;
+      font-size: 12px;
+      font-weight: 900;
+      text-align: left;
+      border-bottom: 1px solid #e9e9ef;
+    }
+
+    .point-breakdown-table th:last-child {
+      text-align: right;
+    }
+
+    .point-breakdown-table td {
+      padding: 13px 14px;
+      border-bottom: 1px solid #eeeef3;
+      vertical-align: top;
+    }
+
+    .point-breakdown-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .point-breakdown-month {
+      width: 46%;
+      color: #222;
+      font-size: 13px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .point-breakdown-values {
+      text-align: right;
+    }
+
+    .point-change {
+      font-size: 14px;
+      font-weight: 900;
+      line-height: 1.6;
+      white-space: nowrap;
+    }
+
+    .point-change.plus { color: #16a34a; }
+    .point-change.minus { color: #dc2626; }
+    .point-change.zero { color: #6b7280; }
+
     /* ===== Notice / Other UI ===== */
     .notice-section{ margin-top: 16px; }
     .section-head{ display:flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0 2px 10px 2px; }
@@ -315,6 +382,15 @@
         入社月より3ヶ月間有効です。
       </div>
       
+      <div id="pointBreakdownSection" class="point-breakdown-section">
+        <div class="section-head">
+          <h3 class="section-title">ポイント内訳</h3>
+        </div>
+        <div class="point-breakdown-panel">
+          <div id="pointBreakdownView"></div>
+        </div>
+      </div>
+
       <button id="openGachaBtn" class="btn-primary btn-gacha" onclick="openGacha()">⚽️ フェアプレー賞 限定PKに挑戦！</button>
 
       <div id="calendarSection" class="calendar-section">
@@ -517,6 +593,125 @@ function toggleEntryBonus(member) {
   bonusNote.style.display = show ? 'block' : 'none';
 }
 
+function parsePointBreakdownRaw(rawValue) {
+  const raw = String(rawValue ?? '').trim();
+  if (!raw) return [];
+
+  // 例:
+  // 2026年06月 : -4000 pt,2026年06月 : 12000 pt,2026年07月 : 0 pt
+  // 数値側が 12,000 pt のような桁区切りでも解析可能。
+  const pattern = /(\d{4})\s*年\s*(\d{1,2})\s*月\s*:\s*([+-]?\s*[\d,]+(?:\.\d+)?)\s*pt/gi;
+  const grouped = new Map();
+
+  let match;
+  while ((match = pattern.exec(raw)) !== null) {
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) continue;
+
+    const point = Number(String(match[3]).replace(/\s/g, '').replace(/,/g, ''));
+    if (!Number.isFinite(point)) continue;
+
+    const monthLabel = `${year}年${String(month).padStart(2, '0')}月`;
+
+    if (!grouped.has(monthLabel)) {
+      grouped.set(monthLabel, { month: monthLabel, items: [] });
+    }
+
+    grouped.get(monthLabel).items.push({ point });
+  }
+
+  return Array.from(grouped.values());
+}
+
+function normalizePointBreakdown(member) {
+  // 修正版Lambdaが返す構造化データを優先。
+  if (Array.isArray(member?.pointBreakdown) && member.pointBreakdown.length > 0) {
+    return member.pointBreakdown;
+  }
+
+  // Lambda切替直後などに構造化データがない場合はN列の生文字列から画面側で解析。
+  return parsePointBreakdownRaw(member?.pointBreakdownRaw);
+}
+
+function renderPointBreakdown(member) {
+  const section = document.getElementById('pointBreakdownSection');
+  const view = document.getElementById('pointBreakdownView');
+  if (!section || !view) return;
+
+  const groups = normalizePointBreakdown(member)
+    .filter(group => group && group.month && Array.isArray(group.items) && group.items.length > 0);
+
+  view.innerHTML = '';
+
+  if (groups.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'point-breakdown-table';
+
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+
+  const monthHead = document.createElement('th');
+  monthHead.textContent = '月';
+
+  const pointHead = document.createElement('th');
+  pointHead.textContent = 'ポイント';
+
+  headRow.appendChild(monthHead);
+  headRow.appendChild(pointHead);
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+
+  groups.forEach(group => {
+    const tr = document.createElement('tr');
+
+    const monthTd = document.createElement('td');
+    monthTd.className = 'point-breakdown-month';
+    monthTd.textContent = String(group.month || '');
+
+    const valuesTd = document.createElement('td');
+    valuesTd.className = 'point-breakdown-values';
+
+    group.items.forEach(item => {
+      const point = Number(item?.point);
+      if (!Number.isFinite(point)) return;
+
+      const pointEl = document.createElement('div');
+      const signClass = point > 0 ? 'plus' : point < 0 ? 'minus' : 'zero';
+      pointEl.className = `point-change ${signClass}`;
+
+      if (point > 0) {
+        pointEl.textContent = `+${point.toLocaleString()} pt`;
+      } else {
+        pointEl.textContent = `${point.toLocaleString()} pt`;
+      }
+
+      valuesTd.appendChild(pointEl);
+    });
+
+    if (!valuesTd.hasChildNodes()) return;
+
+    tr.appendChild(monthTd);
+    tr.appendChild(valuesTd);
+    tbody.appendChild(tr);
+  });
+
+  if (!tbody.hasChildNodes()) {
+    section.style.display = 'none';
+    return;
+  }
+
+  table.appendChild(tbody);
+  view.appendChild(table);
+  section.style.display = 'block';
+}
+
 function renderCard(member) {
   currentMember = member || null;
 
@@ -529,6 +724,7 @@ function renderCard(member) {
   document.getElementById('rankBadge').textContent = rank;
   document.getElementById('points').innerHTML = `${pointNum.toLocaleString()} <small>POINTS</small>`;
   toggleEntryBonus(member);
+  renderPointBreakdown(member);
   
   // ▼ H列、I列、J列の状態に基づくボタン制御
   const gachaBtn = document.getElementById('openGachaBtn');
