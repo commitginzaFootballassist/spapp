@@ -760,7 +760,7 @@ function renderPointBreakdown(member) {
 
       const labelTd = document.createElement('td');
       labelTd.className = 'point-breakdown-label';
-      labelTd.textContent = item?.label || (index === 0 ? '勤怠ポイント' : 'インセンティブポイント');
+      labelTd.textContent = item?.label || (index === 0 ? '' : '');
 
       const pointTd = document.createElement('td');
       pointTd.className = 'point-breakdown-values';
