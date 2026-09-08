@@ -66,6 +66,28 @@
       text-shadow: 0 2px 18px rgba(0,0,0,.20);
     }
     .bottom { display:flex; align-items:flex-end; justify-content: space-between; position: relative; z-index: 1; gap: 10px; }
+    .card-right-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+      min-width: 0;
+    }
+    .cashout-days {
+      display: none;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.20);
+      border: 1px solid rgba(255,255,255,.24);
+      color: rgba(255,255,255,.96);
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1.25;
+      text-align: right;
+      white-space: nowrap;
+      backdrop-filter: blur(5px);
+      text-shadow: 0 1px 8px rgba(0,0,0,.20);
+    }
     .points { font-weight: 900; font-size: 36px; letter-spacing: .02em; text-shadow: 0 2px 12px rgba(0,0,0,.18); white-space: nowrap; }
     .points small { font-size: 13px; opacity: .85; margin-left: 6px; font-weight: 700; letter-spacing: .1em; }
     .bonus-points {
@@ -139,7 +161,7 @@
     }
 
     .point-breakdown-month {
-      width: 30%;
+      width: 52%;
       color: #222;
       font-size: 13px;
       font-weight: 900;
@@ -147,16 +169,8 @@
       vertical-align: middle !important;
     }
 
-    .point-breakdown-label {
-      width: 42%;
-      color: #555;
-      font-size: 12px;
-      font-weight: 800;
-      line-height: 1.4;
-    }
-
     .point-breakdown-values {
-      width: 28%;
+      width: 48%;
       text-align: right;
       white-space: nowrap;
     }
@@ -384,7 +398,10 @@
         </div>
         <div class="bottom">
           <div class="rank-badge" id="rankBadge">A4</div>
-          <div class="muted" style="color:rgba(255,255,255,.92); white-space:nowrap;">Football Assist</div>
+          <div class="card-right-meta">
+            <div class="cashout-days" id="cashoutDays"></div>
+            <div class="muted" style="color:rgba(255,255,255,.92); white-space:nowrap;">Football Assist</div>
+          </div>
         </div>
       </div>
 
@@ -668,14 +685,12 @@ function applyRankIncentiveToBreakdown(groups, rank) {
         items: [
           {
             type: 'attendance',
-            label: '',
             point: safeAttendancePoint,
             basePoint: safeAttendancePoint,
             rankBonus: 0
           },
           {
             type: 'incentive',
-            label: '',
             point: incentiveBase + rankBonus,
             basePoint: incentiveBase,
             rankBonus,
@@ -729,13 +744,15 @@ function renderPointBreakdown(member) {
   const thead = document.createElement('thead');
   const headRow = document.createElement('tr');
 
-  ['月', '内訳', 'ポイント'].forEach((text, index) => {
-    const th = document.createElement('th');
-    th.textContent = text;
-    if (index === 2) th.style.textAlign = 'right';
-    headRow.appendChild(th);
-  });
+  const monthHead = document.createElement('th');
+  monthHead.textContent = '月';
 
+  const pointHead = document.createElement('th');
+  pointHead.textContent = 'ポイント';
+  pointHead.style.textAlign = 'right';
+
+  headRow.appendChild(monthHead);
+  headRow.appendChild(pointHead);
   thead.appendChild(headRow);
   table.appendChild(thead);
 
@@ -758,10 +775,6 @@ function renderPointBreakdown(member) {
         tr.appendChild(monthTd);
       }
 
-      const labelTd = document.createElement('td');
-      labelTd.className = 'point-breakdown-label';
-      labelTd.textContent = item?.label || (index === 0 ? '' : '');
-
       const pointTd = document.createElement('td');
       pointTd.className = 'point-breakdown-values';
 
@@ -773,7 +786,6 @@ function renderPointBreakdown(member) {
         : `${point.toLocaleString()} pt`;
 
       pointTd.appendChild(pointEl);
-      tr.appendChild(labelTd);
       tr.appendChild(pointTd);
       tbody.appendChild(tr);
     });
@@ -789,6 +801,30 @@ function renderPointBreakdown(member) {
   section.style.display = 'block';
 }
 
+function renderCashoutDays(member) {
+  const el = document.getElementById('cashoutDays');
+  if (!el) return;
+
+  const raw = member?.pointCashoutRemainingDays;
+
+  if (raw === null || raw === undefined || String(raw).trim() === '') {
+    el.textContent = '';
+    el.style.display = 'none';
+    return;
+  }
+
+  const days = Number(raw);
+  if (!Number.isFinite(days)) {
+    el.textContent = '';
+    el.style.display = 'none';
+    return;
+  }
+
+  const safeDays = Math.max(0, Math.trunc(days));
+  el.textContent = `ポイント交換可能日まで あと${safeDays.toLocaleString()}日（予定）`;
+  el.style.display = 'block';
+}
+
 function renderCard(member) {
   currentMember = member || null;
 
@@ -802,6 +838,7 @@ function renderCard(member) {
   document.getElementById('points').innerHTML = `${pointNum.toLocaleString()} <small>POINTS</small>`;
   toggleEntryBonus(member);
   renderPointBreakdown(member);
+  renderCashoutDays(member);
   
   // ▼ H列、I列、J列の状態に基づくボタン制御
   const gachaBtn = document.getElementById('openGachaBtn');
