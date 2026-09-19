@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
   <title>ASSIST FAMMILY</title>
-  <!-- attendance-monthly-sections-v1: UIのみ分離。採番・減算はAppSheet側で確定。 -->
   
   <script>
     window.onerror = function(msg, url, line) {
@@ -228,77 +227,6 @@
     .point-change.plus { color: #16a34a; }
     .point-change.minus { color: #dc2626; }
     .point-change.zero { color: #6b7280; }
-
-
-    /* 勤怠指摘は通常ポイントとは別行。色だけでなくカード名と回数を表示する。 */
-    .point-warning-meta {
-      color: #555;
-      font-size: 11px;
-      font-weight: 600;
-      line-height: 1.5;
-      white-space: normal;
-      overflow-wrap: anywhere;
-      margin-bottom: 4px;
-    }
-    .point-warning-card {
-      display: inline-flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 5px;
-      color: #444;
-      font-size: 10px;
-      font-weight: 700;
-      line-height: 1.4;
-      margin-bottom: 4px;
-      white-space: normal;
-    }
-    .point-warning-card-icon {
-      display: inline-block;
-      flex: 0 0 auto;
-      width: 10px;
-      height: 15px;
-      border-radius: 2px;
-      border: 1px solid rgba(0,0,0,.35);
-      transform: rotate(-9deg);
-    }
-    .point-warning-card-icon.yellow { background: #facc15; }
-    .point-warning-card-icon.red { background: #dc2626; }
-
-    /* ===== 勤怠指摘：通常のポイント内訳から分離（月単位で表示） ===== */
-    .attendance-warnings-section { display: none; margin-top: 20px; }
-    .attendance-warnings-rule {
-      margin: -1px 2px 10px; color: #666; font-size: 11px; line-height: 1.7;
-    }
-    .attendance-warning-month {
-      margin-top: 10px; background: #fff; border: 1px solid #e9e9ef;
-      border-radius: 16px; overflow: hidden; box-shadow: 0 8px 18px rgba(0,0,0,.04);
-    }
-    .attendance-warning-month-head {
-      padding: 12px 14px; border-bottom: 1px solid #eeeef3; background: #f7f7fa;
-    }
-    .attendance-warning-month-title {
-      margin: 0; font-size: 13px; font-weight: 900; color: #222; line-height: 1.5;
-    }
-    .attendance-warning-month-meta { margin: 3px 0 0; color: #666; font-size: 11px; line-height: 1.6; }
-    .attendance-warning-list { margin: 0; padding: 0; list-style: none; }
-    .attendance-warning-row {
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 12px; padding: 12px 14px; border-bottom: 1px solid #eeeef3;
-    }
-    .attendance-warning-row:last-child { border-bottom: none; }
-    .attendance-warning-row-main { min-width: 0; }
-    .attendance-warning-row .point-warning-meta { font-size: 12px; }
-    .attendance-warning-row .point-warning-card { font-size: 11px; margin: 0; justify-content: flex-start; }
-    .attendance-warning-row .point-change { flex: 0 0 auto; font-size: 13px; }
-    .attendance-warning-empty { margin: 0; padding: 16px 14px; color: #666; font-size: 12px; line-height: 1.7; }
-    .attendance-warning-history { margin-top: 10px; }
-    .attendance-warning-history > summary {
-      cursor: pointer; padding: 12px 14px; border: 1px solid #e9e9ef; border-radius: 14px;
-      background: #fff; color: #333; font-size: 12px; font-weight: 800; line-height: 1.6;
-    }
-    .attendance-warning-history > summary:focus-visible { outline: 2px solid #555; outline-offset: 2px; }
-    .attendance-warning-history[hidden] { display: none; }
-    .attendance-warning-upcoming-title { margin: 16px 2px 4px; font-size: 12px; color: #666; }
 
     /* ===== Notice / Other UI ===== */
     .notice-section{ margin-top: 16px; }
@@ -547,19 +475,6 @@
         </div>
       </div>
 
-      <section id="attendanceWarningsSection" class="attendance-warnings-section" aria-labelledby="attendanceWarningsTitle">
-        <div class="section-head">
-          <h3 id="attendanceWarningsTitle" class="section-title">勤怠指摘</h3>
-        </div>
-        <p class="attendance-warnings-rule">指摘回数は毎月リセットされます。各月1回目は警告（0 pt）、2回目以降は1回につき−3,000 ptです。</p>
-        <div id="attendanceWarningsCurrent"></div>
-        <details id="attendanceWarningsPast" class="attendance-warning-history" hidden>
-          <summary>過去の勤怠指摘を表示</summary>
-          <div id="attendanceWarningsPastList"></div>
-        </details>
-        <div id="attendanceWarningsUpcoming" hidden></div>
-      </section>
-
       <button id="openGachaBtn" class="btn-primary btn-gacha" onclick="openGacha()">⚽️ フェアプレー賞 限定PKに挑戦！</button>
 
       <div id="calendarSection" class="calendar-section">
@@ -774,47 +689,12 @@ function getRankIncentivePoints(rank) {
   return RANK_INCENTIVE_POINTS[normalized] ?? RANK_INCENTIVE_POINTS.A4;
 }
 
-function parseWarningInteger(value) {
-  const text = String(value ?? '').replace(/[\s,]/g, '');
-  if (!/^[+-]?\d+$/.test(text)) return null;
-  const result = Number(text);
-  return Number.isSafeInteger(result) ? result : null;
-}
-
 function parsePointBreakdownRaw(rawValue) {
-  let raw = String(rawValue ?? '').trim();
+  const raw = String(rawValue ?? '').trim();
   if (!raw) return [];
 
   const pattern = /(\d{4})\s*年\s*(\d{1,2})\s*月\s*:\s*([+-]?\s*[\d,]+(?:\.\d+)?)\s*pt/gi;
   const grouped = new Map();
-  const warnings = [];
-  const warningPattern = /\[\[ATTN1\|([^\[\]]*?)\]\]/g;
-  let warningMatch;
-  while ((warningMatch = warningPattern.exec(raw)) !== null) {
-    const fields = warningMatch[1].split('|').map(value => value.trim());
-    if (fields.length !== 4) continue;
-    const [encodedId, dateText, countText, pointText] = fields;
-    const warningCount = parseWarningInteger(countText);
-    const point = parseWarningInteger(pointText);
-    if (!encodedId || warningCount === null || warningCount < 1 || point === null) continue;
-    const dateParts = dateText.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!dateParts) continue;
-    const [, yearText, monthText, dayText] = dateParts;
-    const year = Number(yearText), month = Number(monthText), day = Number(dayText);
-    // Date.UTCの0〜99年の補正を避け、実在する日付かを検証する。
-    const date = new Date(0);
-    date.setUTCFullYear(year, month - 1, day);
-    date.setUTCHours(0, 0, 0, 0);
-    if (year < 1 || date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) continue;
-    let historyId = encodedId;
-    try { historyId = decodeURIComponent(encodedId); } catch (_) { /* 元の識別子を維持 */ }
-    warnings.push({
-      month: `${yearText}年${monthText}月`,
-      item: { type: 'attendance_warning', historyId, date: dateText, warningCount, point,
-              card: warningCount === 1 ? 'yellow' : 'red' }
-    });
-  }
-  raw = raw.replace(warningPattern, '');
 
   let match;
   while ((match = pattern.exec(raw)) !== null) {
@@ -834,69 +714,69 @@ function parsePointBreakdownRaw(rawValue) {
     grouped.get(monthLabel).items.push({ point });
   }
 
-  warnings.forEach(({ month, item }) => {
-    if (!grouped.has(month)) grouped.set(month, { month, items: [] });
-    grouped.get(month).items.push(item);
-  });
   return Array.from(grouped.values());
 }
 
 function applyRankIncentiveToBreakdown(groups, rank) {
   const rankBonus = getRankIncentivePoints(rank);
+
   return (Array.isArray(groups) ? groups : [])
     .filter(group => group && group.month && Array.isArray(group.items) && group.items.length > 0)
     .map(group => {
-      const normalItems = group.items.filter(item => item?.type !== 'attendance_warning');
-      const warnings = group.items.filter(item => item?.type === 'attendance_warning');
-      const items = [];
-      if (normalItems.length > 0) {
-        const attendancePoint = Number(normalItems[0]?.point);
-        const safeAttendancePoint = Number.isFinite(attendancePoint) ? attendancePoint : 0;
-        const incentiveBase = normalItems.slice(1).reduce((sum, item) => {
-          const value = Number(item?.point);
-          return sum + (Number.isFinite(value) ? value : 0);
-        }, 0);
-        items.push(
-          { type: 'attendance', point: safeAttendancePoint, basePoint: safeAttendancePoint, rankBonus: 0 },
-          { type: 'incentive', point: incentiveBase + rankBonus, basePoint: incentiveBase,
-            rankBonus, synthesized: normalItems.length < 2 }
-        );
-      }
-      warnings.sort((a, b) =>
-        String(a.date || '').localeCompare(String(b.date || ''))
-        || Number(a.warningCount) - Number(b.warningCount)
-        || String(a.historyId || '').localeCompare(String(b.historyId || ''))
-      ).forEach(warning => {
-        const count = Number(warning.warningCount);
-        if (!Number.isInteger(count) || count < 1) return;
-        items.push({ ...warning, type: 'attendance_warning', label: `勤怠指摘 ${count}回目`,
-          basePoint: Number(warning.point), rankBonus: 0, synthesized: false,
-          card: count === 1 ? 'yellow' : 'red' });
-      });
-      return { month: group.month, rank: normalizeRank(rank),
-               rankBonus: normalItems.length > 0 ? rankBonus : 0, items };
+      // 1段目は勤怠ポイント
+      const attendancePoint = Number(group.items[0]?.point);
+      const safeAttendancePoint = Number.isFinite(attendancePoint) ? attendancePoint : 0;
+
+      // 2段目以降はインセンティブ元値として合算。
+      // 通常は2レコード目のみ。
+      const incentiveBase = group.items.slice(1).reduce((sum, item) => {
+        const value = Number(item?.point);
+        return sum + (Number.isFinite(value) ? value : 0);
+      }, 0);
+
+      return {
+        month: group.month,
+        rank: normalizeRank(rank),
+        rankBonus,
+        items: [
+          {
+            type: 'attendance',
+            point: safeAttendancePoint,
+            basePoint: safeAttendancePoint,
+            rankBonus: 0
+          },
+          {
+            type: 'incentive',
+            point: incentiveBase + rankBonus,
+            basePoint: incentiveBase,
+            rankBonus,
+            synthesized: group.items.length < 2
+          }
+        ]
+      };
     });
 }
 
 function normalizePointBreakdown(member) {
-  const structured = member?.pointBreakdown;
-  // 新Lambdaの処理済み履歴は再計算しない。指摘だけの月も1行以上で受け付ける。
-  if (member?.pointBreakdownSchema === 'attendance-cards-v1' && Array.isArray(structured)) {
-    return structured;
-  }
-  // HTMLを先に更新した場合も、旧Lambdaが未解釈の指摘をrawから復元する。
-  if (String(member?.pointBreakdownRaw ?? '').includes('[[ATTN1|')) {
-    return applyRankIncentiveToBreakdown(parsePointBreakdownRaw(member.pointBreakdownRaw), member?.rank);
-  }
-  if (Array.isArray(structured) && structured.length > 0) {
-    const isAdjusted = structured.every(group =>
-      Array.isArray(group?.items) && group.items.length >= 2
-      && group.items[0]?.type === 'attendance' && group.items[1]?.type === 'incentive'
+  // Lambda v3以降はすでにランク加算済み・2段構成なのでそのまま使う。
+  if (Array.isArray(member?.pointBreakdown) && member.pointBreakdown.length > 0) {
+    const isAdjusted = member.pointBreakdown.every(group =>
+      Array.isArray(group?.items)
+      && group.items.length >= 2
+      && group.items[0]?.type === 'attendance'
+      && group.items[1]?.type === 'incentive'
     );
-    if (isAdjusted) return structured;
-    return applyRankIncentiveToBreakdown(structured, member?.rank);
+    if (isAdjusted) return member.pointBreakdown;
+
+    // 旧LambdaのpointBreakdownが返ってきた場合もフロントで補正。
+    return applyRankIncentiveToBreakdown(member.pointBreakdown, member?.rank);
   }
-  return applyRankIncentiveToBreakdown(parsePointBreakdownRaw(member?.pointBreakdownRaw), member?.rank);
+
+  // rawしかない場合のフォールバック。
+  return applyRankIncentiveToBreakdown(
+    parsePointBreakdownRaw(member?.pointBreakdownRaw),
+    member?.rank
+  );
 }
 
 function pointBreakdownMonthSortValue(monthLabel) {
@@ -947,145 +827,6 @@ function toggleOlderPointBreakdown() {
 
 document.getElementById('pointBreakdownMoreBtn')?.addEventListener('click', toggleOlderPointBreakdown);
 
-// 通常ポイントの算出後に表示先だけを分ける。保有ポイントや履歴を書き換えない。
-function splitPointBreakdownSections(groups) {
-  const points = [];
-  const warnings = [];
-  (Array.isArray(groups) ? groups : []).forEach(group => {
-    if (!group || !group.month || !Array.isArray(group.items)) return;
-    const validItems = group.items.filter(item => item && Number.isFinite(Number(item.point)));
-    const normalItems = validItems.filter(item => item.type !== 'attendance_warning');
-    const warningItems = validItems.filter(item => item.type === 'attendance_warning'
-      && Number.isInteger(Number(item.warningCount)) && Number(item.warningCount) >= 1);
-    if (normalItems.length > 0) points.push({ ...group, items: normalItems });
-    if (warningItems.length > 0) warnings.push({ ...group, items: warningItems });
-  });
-  return { points, warnings };
-}
-
-function formatAttendanceWarningPoints(value) {
-  const point = Number(value);
-  if (!Number.isFinite(point)) return '—';
-  return `${point > 0 ? '+' : ''}${point.toLocaleString('ja-JP')} pt`;
-}
-
-function createAttendanceWarningMonth(group, isCurrentMonth = false) {
-  const panel = document.createElement('div');
-  panel.className = 'attendance-warning-month';
-  panel.dataset.month = String(group.month || '');
-  const items = [...(Array.isArray(group.items) ? group.items : [])].sort((a, b) =>
-    String(a.date || '').localeCompare(String(b.date || ''))
-    || Number(a.warningCount) - Number(b.warningCount)
-    || String(a.historyId || '').localeCompare(String(b.historyId || ''))
-  );
-
-  const head = document.createElement('div');
-  head.className = 'attendance-warning-month-head';
-  const title = document.createElement('h4');
-  title.className = 'attendance-warning-month-title';
-  title.textContent = `${group.month || ''}${isCurrentMonth ? '（今月）' : ''}`;
-  head.appendChild(title);
-
-  if (items.length > 0) {
-    // 回数と各行のポイントは管理側で確定した値を使用し、並び順から振り直さない。
-    const maxCount = items.reduce((max, item) => Math.max(max, Number(item.warningCount)), 0);
-    const total = items.reduce((sum, item) => sum + Number(item.point), 0);
-    const meta = document.createElement('p');
-    meta.className = 'attendance-warning-month-meta';
-    meta.textContent = `指摘 ${maxCount}回 ／ 表示分の増減合計 ${formatAttendanceWarningPoints(total)}`;
-    head.appendChild(meta);
-  }
-  panel.appendChild(head);
-
-  if (items.length === 0) {
-    const empty = document.createElement('p');
-    empty.className = 'attendance-warning-empty';
-    empty.textContent = isCurrentMonth ? '今月の勤怠指摘はありません。' : '勤怠指摘はありません。';
-    panel.appendChild(empty);
-    return panel;
-  }
-
-  const list = document.createElement('ul');
-  list.className = 'attendance-warning-list';
-  items.forEach(item => {
-    const row = document.createElement('li');
-    row.className = 'attendance-warning-row';
-    row.dataset.historyId = String(item.historyId || '');
-    const main = document.createElement('div');
-    main.className = 'attendance-warning-row-main';
-    const count = Number(item.warningCount);
-    const meta = document.createElement('div');
-    meta.className = 'point-warning-meta';
-    meta.textContent = `${String(item.date || '').replace(/-/g, '/')}　${count}回目`;
-    main.appendChild(meta);
-
-    const card = document.createElement('div');
-    card.className = 'point-warning-card';
-    const icon = document.createElement('span');
-    icon.className = `point-warning-card-icon ${count === 1 ? 'yellow' : 'red'}`;
-    icon.setAttribute('aria-hidden', 'true');
-    const label = document.createElement('span');
-    label.textContent = count === 1 ? 'イエローカード' : 'レッドカード';
-    card.appendChild(icon);
-    card.appendChild(label);
-    main.appendChild(card);
-    row.appendChild(main);
-
-    const point = Number(item.point);
-    const value = document.createElement('div');
-    value.className = `point-change ${point > 0 ? 'plus' : point < 0 ? 'minus' : 'zero'}`;
-    value.textContent = formatAttendanceWarningPoints(point);
-    row.appendChild(value);
-    list.appendChild(row);
-  });
-  panel.appendChild(list);
-  return panel;
-}
-
-function renderAttendanceWarnings(groups) {
-  const section = document.getElementById('attendanceWarningsSection');
-  const currentView = document.getElementById('attendanceWarningsCurrent');
-  const pastDetails = document.getElementById('attendanceWarningsPast');
-  const pastView = document.getElementById('attendanceWarningsPastList');
-  const upcomingView = document.getElementById('attendanceWarningsUpcoming');
-  if (!section || !currentView || !pastDetails || !pastView || !upcomingView) return;
-
-  currentView.replaceChildren();
-  pastView.replaceChildren();
-  upcomingView.replaceChildren();
-  pastDetails.open = false;
-  pastDetails.hidden = true;
-  upcomingView.hidden = true;
-
-  // 当月判定のみ日本時間。付与日・回数・ポイントは保存値を表示する。
-  const now = getTokyoYearMonth();
-  const currentKey = now.year * 100 + now.month;
-  const currentLabel = `${now.year}年${String(now.month).padStart(2, '0')}月`;
-  const validGroups = sortPointBreakdownDescending(groups)
-    .filter(group => pointBreakdownMonthSortValue(group?.month) > 0);
-  const currentItems = validGroups
-    .filter(group => pointBreakdownMonthSortValue(group.month) === currentKey)
-    .flatMap(group => group.items);
-  currentView.appendChild(createAttendanceWarningMonth({ month: currentLabel, items: currentItems }, true));
-
-  const pastGroups = validGroups.filter(group => pointBreakdownMonthSortValue(group.month) < currentKey);
-  if (pastGroups.length > 0) {
-    pastGroups.forEach(group => pastView.appendChild(createAttendanceWarningMonth(group)));
-    pastDetails.hidden = false;
-  }
-  // 将来日付のテスト／予約データも、当月や過去月に混ぜずに表示する。
-  const upcomingGroups = validGroups.filter(group => pointBreakdownMonthSortValue(group.month) > currentKey);
-  if (upcomingGroups.length > 0) {
-    const label = document.createElement('p');
-    label.className = 'attendance-warning-upcoming-title';
-    label.textContent = '翌月以降の履歴';
-    upcomingView.appendChild(label);
-    upcomingGroups.forEach(group => upcomingView.appendChild(createAttendanceWarningMonth(group)));
-    upcomingView.hidden = false;
-  }
-  section.style.display = 'block';
-}
-
 function renderPointBreakdown(member) {
   const section = document.getElementById('pointBreakdownSection');
   const view = document.getElementById('pointBreakdownView');
@@ -1093,10 +834,10 @@ function renderPointBreakdown(member) {
 
   if (!section || !view) return;
 
-  const sections = splitPointBreakdownSections(normalizePointBreakdown(member));
-  renderAttendanceWarnings(sections.warnings);
-  // 指摘だけの月を除外してから、従来どおり直近3か月＋過去月に分ける。
-  const groups = sortPointBreakdownDescending(sections.points);
+  const groups = sortPointBreakdownDescending(
+    normalizePointBreakdown(member)
+      .filter(group => group && group.month && Array.isArray(group.items) && group.items.length > 0)
+  );
 
   view.innerHTML = '';
 
@@ -1132,8 +873,7 @@ function renderPointBreakdown(member) {
 
   function appendGroupsToTbody(targetTbody, targetGroups) {
     targetGroups.forEach(group => {
-      // 通常の勤怠・インセンティブだけを従来どおり描画する。
-      const items = group.items.filter(item => item && Number.isFinite(Number(item.point)));
+      const items = group.items.slice(0, 2);
 
       items.forEach((item, index) => {
         const point = Number(item?.point);
