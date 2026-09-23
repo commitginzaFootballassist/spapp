@@ -230,7 +230,7 @@
     .point-change.zero { color: #6b7280; }
 
 
-    /* 勤怠指摘は通常ポイントとは別行。色だけでなくカード名と回数を表示する。 */
+    /* 勤怠ペナルティは通常ポイントとは別行。色だけでなくカード名と回数を表示する。 */
     .point-warning-meta {
       color: #555;
       font-size: 11px;
@@ -264,7 +264,7 @@
     .point-warning-card-icon.yellow { background: #facc15; }
     .point-warning-card-icon.red { background: #dc2626; }
 
-    /* ===== 勤怠指摘：通常のポイント内訳から分離（月単位で表示） ===== */
+    /* ===== 勤怠ペナルティ：通常のポイント内訳から分離（月単位で表示） ===== */
     .attendance-warnings-section { display: none; margin-top: 20px; }
     .attendance-warnings-rule {
       margin: -1px 2px 10px; color: #666; font-size: 11px; line-height: 1.7;
@@ -549,12 +549,12 @@
 
       <section id="attendanceWarningsSection" class="attendance-warnings-section" aria-labelledby="attendanceWarningsTitle">
         <div class="section-head">
-          <h3 id="attendanceWarningsTitle" class="section-title">勤怠指摘</h3>
+          <h3 id="attendanceWarningsTitle" class="section-title">勤怠ペナルティ</h3>
         </div>
         <p class="attendance-warnings-rule">指摘回数は毎月リセットされます。</p>
         <div id="attendanceWarningsCurrent"></div>
         <details id="attendanceWarningsPast" class="attendance-warning-history" hidden>
-          <summary>過去の勤怠指摘を表示</summary>
+          <summary>過去の勤怠ペナルティを表示</summary>
           <div id="attendanceWarningsPastList"></div>
         </details>
         <div id="attendanceWarningsUpcoming" hidden></div>
@@ -869,7 +869,7 @@ function applyRankIncentiveToBreakdown(groups, rank) {
       ).forEach(warning => {
         const count = Number(warning.warningCount);
         if (!Number.isInteger(count) || count < 1) return;
-        items.push({ ...warning, type: 'attendance_warning', label: `勤怠指摘 ${count}回目`,
+        items.push({ ...warning, type: 'attendance_warning', label: `勤怠ペナルティ ${count}回目`,
           basePoint: Number(warning.point), rankBonus: 0, synthesized: false,
           card: count === 1 ? 'yellow' : 'red' });
       });
@@ -990,7 +990,7 @@ function createAttendanceWarningMonth(group, isCurrentMonth = false) {
   if (items.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'attendance-warning-empty';
-    empty.textContent = isCurrentMonth ? '今月の勤怠指摘はありません。' : '勤怠指摘はありません。';
+    empty.textContent = isCurrentMonth ? '今月の勤怠ペナルティはありません。' : '勤怠ペナルティはありません。';
     panel.appendChild(empty);
     return panel;
   }
