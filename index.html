@@ -4,6 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
   <title>ASSIST FAMILY</title>
+  <!-- members-individual-points-v2-stored-balance-20261104 -->
+  <!-- individual-points-v1-20261104: 月額個別加算対応。年間補正はLambdaで行い、画面では再加算しない。 -->
   <!-- attendance-monthly-sections-v1: UIのみ分離。採番・減算はAppSheet側で確定。 -->
   
   <script>
@@ -774,6 +776,14 @@ function getRankIncentivePoints(rank) {
   return RANK_INCENTIVE_POINTS[normalized] ?? RANK_INCENTIVE_POINTS.A4;
 }
 
+
+function normalizeIndividualAdditionalPoints(value) {
+  const text = String(value ?? '').replace(/[\s,]/g, '');
+  if (!text || !/^[+-]?[0-9]+(?:\.0+)?$/.test(text)) return 0;
+  const point = Number(text);
+  return Number.isSafeInteger(point) ? point : 0;
+}
+
 function parseWarningInteger(value) {
   const text = String(value ?? '').replace(/[\s,]/g, '');
   if (!/^[+-]?\d+$/.test(text)) return null;
@@ -841,8 +851,9 @@ function parsePointBreakdownRaw(rawValue) {
   return Array.from(grouped.values());
 }
 
-function applyRankIncentiveToBreakdown(groups, rank) {
+function applyRankIncentiveToBreakdown(groups, rank, individualAdditionalPoints = 0) {
   const rankBonus = getRankIncentivePoints(rank);
+  const individualPoints = normalizeIndividualAdditionalPoints(individualAdditionalPoints);
   return (Array.isArray(groups) ? groups : [])
     .filter(group => group && group.month && Array.isArray(group.items) && group.items.length > 0)
     .map(group => {
@@ -857,9 +868,10 @@ function applyRankIncentiveToBreakdown(groups, rank) {
           return sum + (Number.isFinite(value) ? value : 0);
         }, 0);
         items.push(
-          { type: 'attendance', point: safeAttendancePoint, basePoint: safeAttendancePoint, rankBonus: 0 },
-          { type: 'incentive', point: incentiveBase + rankBonus, basePoint: incentiveBase,
-            rankBonus, synthesized: normalItems.length < 2 }
+          { type: 'attendance', point: safeAttendancePoint, basePoint: safeAttendancePoint,
+            rankBonus: 0, individualAdditionalPoints: 0 },
+          { type: 'incentive', point: incentiveBase + rankBonus + individualPoints, basePoint: incentiveBase,
+            rankBonus, individualAdditionalPoints: individualPoints, synthesized: normalItems.length < 2 }
         );
       }
       warnings.sort((a, b) =>
@@ -870,23 +882,27 @@ function applyRankIncentiveToBreakdown(groups, rank) {
         const count = Number(warning.warningCount);
         if (!Number.isInteger(count) || count < 1) return;
         items.push({ ...warning, type: 'attendance_warning', label: `勤怠ペナルティ ${count}回目`,
-          basePoint: Number(warning.point), rankBonus: 0, synthesized: false,
+          basePoint: Number(warning.point), rankBonus: 0, individualAdditionalPoints: 0, synthesized: false,
           card: count === 1 ? 'yellow' : 'red' });
       });
       return { month: group.month, rank: normalizeRank(rank),
-               rankBonus: normalItems.length > 0 ? rankBonus : 0, items };
+               rankBonus: normalItems.length > 0 ? rankBonus : 0,
+               individualAdditionalPoints: normalItems.length > 0 ? individualPoints : 0,
+               monthlyIncentivePoints: normalItems.length > 0 ? rankBonus + individualPoints : 0, items };
     });
 }
 
 function normalizePointBreakdown(member) {
   const structured = member?.pointBreakdown;
-  // 新Lambdaの処理済み履歴は再計算しない。指摘だけの月も1行以上で受け付ける。
+  const individualPoints = normalizeIndividualAdditionalPoints(member?.individualAdditionalPoints);
+  // Lambdaの処理済み履歴には個別加算も含まれるため、ランク分・P列とも再加算しない。
+  // 指摘だけの月も1行以上で受け付ける。
   if (member?.pointBreakdownSchema === 'attendance-cards-v1' && Array.isArray(structured)) {
     return structured;
   }
   // HTMLを先に更新した場合も、旧Lambdaが未解釈の指摘をrawから復元する。
   if (String(member?.pointBreakdownRaw ?? '').includes('[[ATTN1|')) {
-    return applyRankIncentiveToBreakdown(parsePointBreakdownRaw(member.pointBreakdownRaw), member?.rank);
+    return applyRankIncentiveToBreakdown(parsePointBreakdownRaw(member.pointBreakdownRaw), member?.rank, individualPoints);
   }
   if (Array.isArray(structured) && structured.length > 0) {
     const isAdjusted = structured.every(group =>
@@ -894,9 +910,9 @@ function normalizePointBreakdown(member) {
       && group.items[0]?.type === 'attendance' && group.items[1]?.type === 'incentive'
     );
     if (isAdjusted) return structured;
-    return applyRankIncentiveToBreakdown(structured, member?.rank);
+    return applyRankIncentiveToBreakdown(structured, member?.rank, individualPoints);
   }
-  return applyRankIncentiveToBreakdown(parsePointBreakdownRaw(member?.pointBreakdownRaw), member?.rank);
+  return applyRankIncentiveToBreakdown(parsePointBreakdownRaw(member?.pointBreakdownRaw), member?.rank, individualPoints);
 }
 
 function pointBreakdownMonthSortValue(monthLabel) {
@@ -1214,6 +1230,7 @@ function renderCard(member) {
   currentMember = member || null;
 
   const fullName = `${(member?.lastName || '').trim()} ${(member?.firstName || '').trim()}`.trim() || '-';
+  // member.pointはAppSheetで更新済みのASSISTポイント残高。画面側で×12や履歴の再加減算をしない。
   const pointNum = Number.isFinite(Number(member?.point ?? 0)) ? Number(member?.point ?? 0) : 0;
   const rank = normalizeRank(member?.rank);
   const card = document.getElementById('card');
